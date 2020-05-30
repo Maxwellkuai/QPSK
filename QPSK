@@ -1,0 +1,111 @@
+clc; close all;
+fs = 8; fd = 1;
+N = 64;
+
+%% 产生0，1 信号
+x = randi([0,1],1,N);
+xi = x;                            %存储输入信号
+
+%% 调制
+x = 2*x(1:2:end)+x(2:2:end);       %QPSK调制用数值代替信号运算
+const = [1+1i,-1+1i,1-1i,-1-1i];   %映射准备，使其符合genqammod规则
+x = genqammod(x,const);            %映射
+
+figure(1);
+subplot(211);
+stem(real(x));
+title('QPSK调制后的同向分量');
+subplot(212);
+stem(imag(x),'r');
+title('QPSK调制后的正交分量');
+
+scatterplot(x);
+title('QPSK星座图');
+axis([-2,2,-2,2]);
+line([-pi,0],[0,0]);
+line([pi,0],[0,0]);
+line([0,0],[0,pi]);
+line([0,0],[0,-pi]);
+
+%% 插值
+y = upsample(x,8);                  %对信号进行插值
+
+figure(3);
+subplot(211);
+stem(real(y));
+title('上采样后的同向分量');
+subplot(212);
+stem(imag(y),'r');
+title('上采样后的正交分量');
+
+%% 低通滤波
+% y = rcosflt(x,fd,fs,'fir/sqrt',0.25,1);   %低通滤波
+filter = rcosine(fd,fs,'fir/sqrt',0.25,1);
+y = conv(y,filter);
+
+figure(4);
+subplot(211);
+stem(real(y),'.');
+title('滤波后的同向分量');
+subplot(212);
+stem(imag(y),'r','.');
+title('滤波后的正交分量');
+
+%% 装载波
+% t = 1:length(upsample(x,8));
+% y_c = cos(20*pi*t+angle(upsample(x,8)));
+% figure('zaibo')
+% stem(y_c,'.');
+
+
+
+%% 加入awgn噪声
+y = awgn(y,100);
+
+
+%% 匹配滤波器
+
+y = conv(y,filter);
+
+figure(5)
+subplot(211)
+stem(real(y),'.');
+title('匹配滤波后的同向分量');
+subplot(212)
+stem(imag(y),'r','.')
+title('匹配滤波后的正交分量');
+
+%% 采样
+y = y(16:8:end-17);         %去掉前后16个点（由两次卷积导致的冗余）
+scatterplot(y)
+title('采样后星座图')
+axis([-2,2,-2,2]);
+line([-pi,0],[0,0]);
+line([pi,0],[0,0]);
+line([0,0],[0,pi]);
+line([0,0],[0,-pi]);
+
+%% 解调
+y_s = zeros(2*length(y));   %设置长度为两倍y的空矩阵
+for n=1:length(y)           %解调，根据星座图映射复原
+    if imag(y(n))>=0
+        y_s(2*n-1) = 0;
+    else
+        y_s(2*n-1) = 1;
+    end
+    if real(y(n))>=0
+        y_s(2*n) = 0;
+    else
+        y_s(2*n) = 1;
+    end
+end
+
+%% 对比
+figure(7)
+subplot(211)
+stem(y_s,'.')
+title('解调后的01信号');
+subplot(212)
+stem(xi,'blue','.')
+title('原01信号');
+
